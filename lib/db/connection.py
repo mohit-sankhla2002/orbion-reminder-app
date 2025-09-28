@@ -10,4 +10,5 @@ if not db_url:
 
 engine = create_engine(db_url, echo=True)
 
-engine.connect()
+def get_engine():
+    return engine
