@@ -6,6 +6,7 @@ from lib.db import models as mymodel
 from alembic import context
 import os 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # this is the Alembic Config object, which provides

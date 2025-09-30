@@ -1,33 +1,29 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, APIRouter
 from pydantic import BaseModel
-from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi.security import OAuth2PasswordBearer
+from bcrypt import gensalt, hashpw, checkpw
 
 # JWT configuration
-SECRET_KEY = "your-secret-key"  # Replace with a secure key in production
+SECRET_KEY = "WupNFdl4VNWgRR6kg6QBx2SI1en18q0H9MWD9fmiIqo="  
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# OAuth2 scheme for token authentication
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
-# In-memory user storage (simulating a database)
 users_db = {}
 
-app = FastAPI()
+auth_router = APIRouter(prefix="/auth", tags=["auth"])
 
 # Pydantic models
 class User_login(BaseModel):
     username: str
     password: str
 
-class User_registor(BaseModel):
+class User_register(BaseModel):
     firstname: str
     lastname: str
     email: str
@@ -52,10 +48,10 @@ class Token(BaseModel):
 
 # Helper functions
 def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+    return checkpw(plain_password.encode('utf-8'), hashed_password)
 
 def get_password_hash(password):
-    return pwd_context.hash(password)
+    return hashpw(password.encode('utf-8'), gensalt())
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
@@ -86,7 +82,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     return user
 
 # Endpoints
-@app.post("/login", response_model=Token)
+@auth_router.post("/login", response_model=Token)
 async def login_user(user: User_login):
     db_user = users_db.get(user.username)
     if not db_user or not verify_password(user.password, db_user["password"]):
@@ -101,8 +97,9 @@ async def login_user(user: User_login):
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-@app.post("/registor")
-async def registration(user: User_registor):
+@auth_router.post("/register")
+async def registration(user: User_register):
+    print(user)
     if user.email in [u["email"] for u in users_db.values()]:
         raise HTTPException(status_code=400, detail="Email already registered")
     hashed_password = get_password_hash(user.password)
@@ -116,7 +113,7 @@ async def registration(user: User_registor):
     }
     return user.model_dump()
 
-@app.put("/change-password")
+@auth_router.put("/change-password")
 async def update_password(
     changepassword: ChangePassword,
     current_user: dict = Depends(get_current_user)
@@ -129,7 +126,7 @@ async def update_password(
     users_db[current_user["username"]]["password"] = hashed_password
     return {"changepassword": changepassword.model_dump()}
 
-@app.post("/forgot-password")
+@auth_router.post("/forgot-password")
 async def forgot_password(password: ForgotPassword):
     user = users_db.get(password.email)
     if not user or user["username"] != password.email:
@@ -139,7 +136,7 @@ async def forgot_password(password: ForgotPassword):
     users_db[password.email]["password"] = hashed_password
     return password.model_dump()
 
-@app.put("/reset-password")  # Fixed typo from 'reset-paasword'
+@auth_router.put("/reset-password")  # Fixed typo from 'reset-paasword'
 async def reset_password(
     resetpassword: ChangePassword,
     current_user: dict = Depends(get_current_user)
