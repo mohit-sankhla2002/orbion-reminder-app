@@ -10,13 +10,14 @@ class User(Base):
     __tablename__ = "users"
     __table_args__ = {'mysql_engine': 'InnoDB'}
     
-    user_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     name = Column(String(255), nullable=False)
     annual = Column(String(100), nullable=True)
     phone_number = Column(String(20), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     status = Column(String(50), nullable=True)
-    
+    email = Column(String(50), nullable=False, unique=True)
+    password = Column(String(512), nullable=False)
     # Relationships
     reminders = relationship("Reminder", back_populates="user")
     todos = relationship("Todo", back_populates="user")

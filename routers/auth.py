@@ -5,20 +5,28 @@ from datetime import datetime, timedelta
 from typing import Optional
 from fastapi.security import OAuth2PasswordBearer
 from bcrypt import gensalt, hashpw, checkpw
+from sqlalchemy.orm import Session
+from lib.db.connection import get_engine
+from lib.db.models import User
+from pydantic_core import ValidationError
+from dotenv import load_dotenv
+import os 
+
+engine = get_engine()
+load_dotenv()
+
+db = Session(engine)
 
 # JWT configuration
-SECRET_KEY = "WupNFdl4VNWgRR6kg6QBx2SI1en18q0H9MWD9fmiIqo="  
+SECRET_KEY = os.getenv("JWT_SECRET")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
-users_db = {}
-
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
 
-# Pydantic models
 class User_login(BaseModel):
     username: str
     password: str
@@ -33,7 +41,7 @@ class User_register(BaseModel):
 class ChangePassword(BaseModel):
     username: str
     email: str
-    previouspassword: str  # Fixed typo from 'perviouspassword'
+    previouspassword: str  
     newpassword : str   
 
 class ForgotPassword(BaseModel):
@@ -98,19 +106,21 @@ async def login_user(user: User_login):
     return {"access_token": access_token, "token_type": "bearer"}
 
 @auth_router.post("/register")
-async def registration(user: User_register):
+async def registration(user: User_register.model_construct):
     print(user)
-    if user.email in [u["email"] for u in users_db.values()]:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    hashed_password = get_password_hash(user.password)
-    users_db[user.email] = {
-        "username": user.email,  # Using email as username for simplicity
-        "firstname": user.firstname,
-        "lastname": user.lastname,
-        "email": user.email,
-        "password": hashed_password,
-        "contactNo": user.contactNo
-    }
+    validated_user = user
+    try:
+        validated_user = User_register.model_validate(user)
+    except ValidationError as err:
+        raise err
+
+    hashed_password = get_password_hash(validated_user.password)
+    new_user = User(name=(validated_user.firstname + validated_user.lastname), phone_number=validated_user.contactNo, email=validated_user.email, password=hashed_password)
+
+    db.add(new_user)
+
+    db.commit()
+
     return user.model_dump()
 
 @auth_router.put("/change-password")
